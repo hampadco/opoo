@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # Colors
 red='\033[0;31m'
 green='\033[0;32m'
@@ -8,7 +9,64 @@ cyan='\033[0;36m'
 blue='\033[0;34m'
 rest='\033[0m'
 
-# ... (بقیه توابع بدون تغییر می‌مانند) ...
+# Function to install necessary packages
+install_packages() {
+    local packages=(curl jq bc)
+    local missing_packages=()
+    for pkg in "${packages[@]}"; do
+        if ! command -v "$pkg" &> /dev/null; then
+            missing_packages+=("$pkg")
+        fi
+    done
+    if [ ${#missing_packages[@]} -gt 0 ]; then
+        if [ -n "$(command -v pkg)" ]; then
+            pkg install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v apt)" ]; then
+            sudo apt update -y
+            sudo apt install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v yum)" ]; then
+            sudo yum update -y
+            sudo yum install "${missing_packages[@]}" -y
+        elif [ -n "$(command -v dnf)" ]; then
+            sudo dnf update -y
+            sudo dnf install "${missing_packages[@]}" -y
+        else
+            echo -e "${yellow}Unsupported package manager. Please install required packages manually.${rest}"
+            exit 1
+        fi
+    fi
+}
+
+# Install the necessary packages
+install_packages
+
+# Clear the screen
+clear
+
+# Prompt for Authorization
+echo -e "${purple}============================${rest}"
+echo -en "${green}Enter Authorization [${cyan}Example: ${yellow}Bearer 171852....${green}]: ${rest}"
+read -r Authorization
+echo -e "${purple}============================${rest}"
+
+# Function to get the list of cards
+get_card_list() {
+    curl -s -X GET \
+      -H "Authorization: $Authorization" \
+      -H "Origin: https://oppogame.ir" \
+      -H "Referer: https://oppogame.ir/" \
+      https://api.oppogame.ir/v2/telegram-bot/mine-cards
+}
+
+# Function to select a card
+select_card() {
+    card_id="$1"
+    curl -s -X POST \
+      -H "Authorization: $Authorization" \
+      -H "Origin: https://oppogame.ir" \
+      -H "Referer: https://oppogame.ir/" \
+      "https://api.oppogame.ir/v2/telegram-bot/mine-cards/$card_id"
+}
 
 # Function to get the best card
 get_best_card() {
