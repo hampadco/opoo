@@ -72,11 +72,8 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
 }
-
-# Initialize an empty array to store failed card IDs
-declare -a failed_cards
 
 # Main script logic
 main() {
@@ -84,17 +81,21 @@ main() {
         # Get the list of cards
         card_list=$(get_card_list)
         
-        # Get sorted cards
-        sorted_cards=$(get_best_card "$card_list")
+        # Check if card_list is valid JSON
+        if ! echo "$card_list" | jq empty > /dev/null 2>&1; then
+            echo -e "${red}Error: Invalid JSON response from API${rest}"
+            echo -e "${yellow}Response: $card_list${rest}"
+            echo -e "${yellow}Waiting for 60 seconds before trying again...${rest}"
+            sleep 60
+            continue
+        fi
         
-        # Find the best card that hasn't failed before
-        best_card=$(echo "$sorted_cards" | jq -r ".[] | select(.id as \$id | \$id | tostring | not in $(printf '%s\n' "${failed_cards[@]}" | jq -R . | jq -s .) ) | .[0]")
+        # Get the best card
+        best_card=$(get_best_card "$card_list")
         
         if [ -z "$best_card" ] || [ "$best_card" == "null" ]; then
-            echo -e "${yellow}No suitable card found or all cards have failed. Waiting for 60 seconds before trying again...${rest}"
+            echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
-            # Clear the failed cards list and try again
-            failed_cards=()
             continue
         fi
 
@@ -109,16 +110,14 @@ main() {
         echo -e "${green}Attempting to select card '${yellow}$card_id${green}'...${rest}"
         selection_result=$(select_card "$card_id")
 
-        if echo "$selection_result" | jq -e '.id' > /dev/null; then
+        # Check if selection_result is valid JSON
+        if ! echo "$selection_result" | jq empty > /dev/null 2>&1; then
+            echo -e "${red}Error: Invalid JSON response from API${rest}"
+            echo -e "${yellow}Response: $selection_result${rest}"
+        elif echo "$selection_result" | jq -e '.id' > /dev/null; then
             echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
-            # Remove the card from failed_cards if it was there
-            failed_cards=("${failed_cards[@]/$card_id}")
         else
             echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail // "Unknown error"')${rest}"
-            # Add the card to failed_cards if it's not already there
-            if [[ ! " ${failed_cards[@]} " =~ " ${card_id} " ]]; then
-                failed_cards+=("$card_id")
-            fi
         fi
 
         # Random delay between 10 and 20 seconds
