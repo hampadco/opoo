@@ -13,11 +13,13 @@ rest='\033[0m'
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
+
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
+
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -70,19 +72,11 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '
-        .results[] 
-        | select(.status == "STARTED" and .requirement.cards == []) 
-        | .id as $id 
-        | .effect_function.params 
-        | select(.dst_amount != null and .coin_amount != null and .coin_amount != 0) 
-        | {id: $id, ratio: (.dst_amount / .coin_amount)}
-    ' | jq -s 'sort_by(-.ratio) | .[0]'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
 }
 
 # Main script logic
 main() {
-    declare -A failed_cards
     while true; do
         # Get the list of cards
         card_list=$(get_card_list)
@@ -90,7 +84,7 @@ main() {
         # Get the best card
         best_card=$(get_best_card "$card_list")
         
-        if [ -z "$best_card" ] || [ "$best_card" = "null" ]; then
+        if [ -z "$best_card" ]; then
             echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
             continue
@@ -98,12 +92,6 @@ main() {
 
         card_id=$(echo "$best_card" | jq -r '.id')
         ratio=$(echo "$best_card" | jq -r '.ratio')
-
-        # Skip this card if it has failed recently
-        if [[ ${failed_cards[$card_id]} -ge 3 ]]; then
-            echo -e "${yellow}Skipping card ${card_id} due to multiple recent failures.${rest}"
-            continue
-        fi
 
         echo -e "${purple}============================${rest}"
         echo -e "${green}Best card to select:${yellow} $card_id${rest}"
@@ -115,15 +103,8 @@ main() {
 
         if echo "$selection_result" | jq -e '.id' > /dev/null; then
             echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
-            failed_cards[$card_id]=0
         else
-            error_message=$(echo "$selection_result" | jq -r '.message // .detail // "Unknown error"')
-            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$error_message${rest}"
-            failed_cards[$card_id]=$((${failed_cards[$card_id]:-0} + 1))
-            
-            if [[ $error_message == *"depends on another card"* ]]; then
-                echo -e "${yellow}This card depends on another card. Skipping for now.${rest}"
-            fi
+            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
         fi
 
         echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
