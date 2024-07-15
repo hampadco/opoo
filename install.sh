@@ -69,7 +69,14 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | select(.dst_amount != null and .coin_amount != null) | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
+    echo "$1" | jq -r '
+        .results[] 
+        | select(.status == "STARTED") 
+        | .id as $id 
+        | .effect_function.params 
+        | select(.dst_amount != null and .coin_amount != null and .coin_amount != 0) 
+        | {id: $id, ratio: (.dst_amount / .coin_amount)}
+    ' | jq -s 'sort_by(-.ratio) | .[0]'
 }
 
 # Main script logic
