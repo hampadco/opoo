@@ -72,8 +72,11 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
 }
+
+# Initialize an empty array to store failed card IDs
+declare -a failed_cards
 
 # Main script logic
 main() {
@@ -81,12 +84,17 @@ main() {
         # Get the list of cards
         card_list=$(get_card_list)
         
-        # Get the best card
-        best_card=$(get_best_card "$card_list")
+        # Get sorted cards
+        sorted_cards=$(get_best_card "$card_list")
         
-        if [ -z "$best_card" ]; then
-            echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
+        # Find the best card that hasn't failed before
+        best_card=$(echo "$sorted_cards" | jq -r ".[] | select(.id as \$id | \$id | tostring | not in $(printf '%s\n' "${failed_cards[@]}" | jq -R . | jq -s .) ) | .[0]")
+        
+        if [ -z "$best_card" ] || [ "$best_card" == "null" ]; then
+            echo -e "${yellow}No suitable card found or all cards have failed. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
+            # Clear the failed cards list and try again
+            failed_cards=()
             continue
         fi
 
@@ -103,12 +111,20 @@ main() {
 
         if echo "$selection_result" | jq -e '.id' > /dev/null; then
             echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
+            # Remove the card from failed_cards if it was there
+            failed_cards=("${failed_cards[@]/$card_id}")
         else
-            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
+            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail // "Unknown error"')${rest}"
+            # Add the card to failed_cards if it's not already there
+            if [[ ! " ${failed_cards[@]} " =~ " ${card_id} " ]]; then
+                failed_cards+=("$card_id")
+            fi
         fi
 
-        echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
-        sleep 10
+        # Random delay between 10 and 20 seconds
+        delay=$((RANDOM % 11 + 10))
+        echo -e "${green}Waiting for ${yellow}$delay${green} seconds before next selection...${rest}"
+        sleep $delay
     done
 }
 
