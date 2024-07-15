@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Colors
 red='\033[0;31m'
 green='\033[0;32m'
@@ -13,13 +12,11 @@ rest='\033[0m'
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
-
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
-
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -72,7 +69,7 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | select(.dst_amount != null and .coin_amount != null) | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
 }
 
 # Main script logic
@@ -81,19 +78,10 @@ main() {
         # Get the list of cards
         card_list=$(get_card_list)
         
-        # Check if card_list is valid JSON
-        if ! echo "$card_list" | jq empty > /dev/null 2>&1; then
-            echo -e "${red}Error: Invalid JSON response from API${rest}"
-            echo -e "${yellow}Response: $card_list${rest}"
-            echo -e "${yellow}Waiting for 60 seconds before trying again...${rest}"
-            sleep 60
-            continue
-        fi
-        
         # Get the best card
         best_card=$(get_best_card "$card_list")
         
-        if [ -z "$best_card" ] || [ "$best_card" == "null" ]; then
+        if [ -z "$best_card" ] || [ "$best_card" = "null" ]; then
             echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
             continue
@@ -110,20 +98,14 @@ main() {
         echo -e "${green}Attempting to select card '${yellow}$card_id${green}'...${rest}"
         selection_result=$(select_card "$card_id")
 
-        # Check if selection_result is valid JSON
-        if ! echo "$selection_result" | jq empty > /dev/null 2>&1; then
-            echo -e "${red}Error: Invalid JSON response from API${rest}"
-            echo -e "${yellow}Response: $selection_result${rest}"
-        elif echo "$selection_result" | jq -e '.id' > /dev/null; then
+        if echo "$selection_result" | jq -e '.id' > /dev/null; then
             echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
         else
             echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail // "Unknown error"')${rest}"
         fi
 
-        # Random delay between 10 and 20 seconds
-        delay=$((RANDOM % 11 + 10))
-        echo -e "${green}Waiting for ${yellow}$delay${green} seconds before next selection...${rest}"
-        sleep $delay
+        echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
+        sleep 10
     done
 }
 
