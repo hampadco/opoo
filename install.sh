@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # Colors
 red='\033[0;31m'
 green='\033[0;32m'
@@ -12,11 +13,13 @@ rest='\033[0m'
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
+
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
+
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -69,14 +72,7 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '
-        .results[] 
-        | select(.status == "STARTED") 
-        | .id as $id 
-        | .effect_function.params 
-        | select(.dst_amount != null and .coin_amount != null and .coin_amount != 0) 
-        | {id: $id, ratio: (.dst_amount / .coin_amount)}
-    ' | jq -s 'sort_by(-.ratio) | .[0]'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
 }
 
 # Main script logic
@@ -88,7 +84,7 @@ main() {
         # Get the best card
         best_card=$(get_best_card "$card_list")
         
-        if [ -z "$best_card" ] || [ "$best_card" = "null" ]; then
+        if [ -z "$best_card" ]; then
             echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
             continue
@@ -108,7 +104,7 @@ main() {
         if echo "$selection_result" | jq -e '.id' > /dev/null; then
             echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
         else
-            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail // "Unknown error"')${rest}"
+            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
         fi
 
         echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
