@@ -20,3 +20,4 @@ How to Run hamster in Browser:
 ![30](https://raw.githubusercontent.com/Ptechgithub/configs/main/media/30.jpg)
 
 [آموزش ویدیویی در YouTube](https://www.youtube.com/watch?v=bXND1sElZuc)
+Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmNDE4N2E1LTEzMTEtNDkxZS1hMTBhLTM0YzFlNDIxZTQ3MSIsInRlbGVncmFtSWQiOjUzMDE4MzU0ODUsIm5hbWUiOiJHaGFzZW1pIiwiaWF0IjoxNzIxMDgwNDY0LCJleHAiOjE3MjExNTI0NjR9.zVMzOyJWIrHoZgF1lY2HmIGIcgrFGppoDMZGsGmf8iI
