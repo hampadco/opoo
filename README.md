@@ -1,4 +1,4 @@
-# Hamster-Auto-buy-BestCard
+# opoo-Auto-buy-BestCard
 
 ## Install
 ```
