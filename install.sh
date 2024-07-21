@@ -82,8 +82,8 @@ main() {
         sorted_cards=$(get_sorted_cards "$card_list")
         
         if [ -z "$sorted_cards" ] || [ "$(echo "$sorted_cards" | jq length)" -eq 0 ]; then
-            echo -e "${yellow}No suitable cards found. Waiting for 60 seconds before trying again...${rest}"
-            sleep 60
+            echo -e "${yellow}No suitable cards found. Waiting for 1 second before trying again...${rest}"
+            sleep 1
             continue
         fi
 
@@ -98,15 +98,15 @@ main() {
             selection_result=$(select_card "$card_id")
             if echo "$selection_result" | jq -e '.id' > /dev/null; then
                 echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
-                break
+                break 2  # Break out of both the while loop and the outer while loop
             else
                 echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
                 echo -e "${yellow}Moving to the next card...${rest}"
             fi
         done
 
-        echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
-        sleep 10
+        echo -e "${green}Waiting for 1 second before next selection...${rest}"
+        sleep 1
     done
 }
 
