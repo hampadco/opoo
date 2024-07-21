@@ -100,7 +100,7 @@ main() {
             # Check if the card is in the failed_cards array
             if [[ ${failed_cards[$card_id]} ]]; then
                 continue
-            }
+            fi
             
             ratio=$(echo "$card" | jq -r '.ratio')
             echo -e "${purple}============================${rest}"
