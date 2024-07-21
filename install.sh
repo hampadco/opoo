@@ -72,6 +72,9 @@ get_sorted_cards() {
     echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
 }
 
+# Array to store failed card IDs
+failed_cards=()
+
 # Main script logic
 main() {
     while true; do
@@ -90,6 +93,13 @@ main() {
         # Iterate through sorted cards
         echo "$sorted_cards" | jq -c '.[]' | while read -r card; do
             card_id=$(echo "$card" | jq -r '.id')
+            
+            # Check if the card is in the failed_cards array
+            if [[ " ${failed_cards[@]} " =~ " ${card_id} " ]]; then
+                echo -e "${yellow}Skipping previously failed card: ${card_id}${rest}"
+                continue
+            fi
+            
             ratio=$(echo "$card" | jq -r '.ratio')
             echo -e "${purple}============================${rest}"
             echo -e "${green}Attempting to select card:${yellow} $card_id${rest}"
@@ -101,7 +111,8 @@ main() {
                 break 2  # Break out of both the while loop and the outer while loop
             else
                 echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
-                echo -e "${yellow}Moving to the next card...${rest}"
+                echo -e "${yellow}Adding card to failed list and moving to the next card...${rest}"
+                failed_cards+=("$card_id")
             fi
         done
 
