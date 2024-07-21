@@ -69,11 +69,18 @@ select_card() {
 
 # Function to get the sorted list of cards
 get_sorted_cards() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
+    echo "$1" | jq -r --argjson failed "$2" '
+        .results[] 
+        | select(.status == "STARTED") 
+        | select(.id as $id | $failed | index($id) | not)
+        | .id as $id 
+        | .effect_function.params 
+        | {id: $id, ratio: (.dst_amount / .coin_amount)}
+    ' | jq -s 'sort_by(-.ratio)'
 }
 
-# Declare an associative array to store failed card IDs
-declare -A failed_cards
+# Array to store failed card IDs
+failed_cards=()
 
 # Main script logic
 main() {
@@ -81,8 +88,8 @@ main() {
         # Get the list of cards
         card_list=$(get_card_list)
         
-        # Get the sorted list of cards
-        sorted_cards=$(get_sorted_cards "$card_list")
+        # Get the sorted list of cards (excluding failed ones)
+        sorted_cards=$(get_sorted_cards "$card_list" "$(printf '%s\n' "${failed_cards[@]}" | jq -R . | jq -s .)")
         
         if [ -z "$sorted_cards" ] || [ "$(echo "$sorted_cards" | jq length)" -eq 0 ]; then
             echo -e "${yellow}No suitable cards found. Waiting for 1 second before trying again...${rest}"
@@ -96,12 +103,6 @@ main() {
         # Iterate through sorted cards
         echo "$sorted_cards" | jq -c '.[]' | while read -r card; do
             card_id=$(echo "$card" | jq -r '.id')
-            
-            # Check if the card is in the failed_cards array
-            if [[ ${failed_cards[$card_id]} ]]; then
-                continue
-            fi
-            
             ratio=$(echo "$card" | jq -r '.ratio')
             echo -e "${purple}============================${rest}"
             echo -e "${green}Attempting to select card:${yellow} $card_id${rest}"
@@ -115,7 +116,7 @@ main() {
             else
                 echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
                 echo -e "${yellow}Adding card to failed list and moving to the next card...${rest}"
-                failed_cards[$card_id]=1
+                failed_cards+=("$card_id")
             fi
         done
 
