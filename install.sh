@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Colors
 red='\033[0;31m'
 green='\033[0;32m'
@@ -13,13 +12,11 @@ rest='\033[0m'
 install_packages() {
     local packages=(curl jq bc)
     local missing_packages=()
-
     for pkg in "${packages[@]}"; do
         if ! command -v "$pkg" &> /dev/null; then
             missing_packages+=("$pkg")
         fi
     done
-
     if [ ${#missing_packages[@]} -gt 0 ]; then
         if [ -n "$(command -v pkg)" ]; then
             pkg install "${missing_packages[@]}" -y
@@ -70,9 +67,9 @@ select_card() {
       "https://api.oppogame.ir/v2/telegram-bot/mine-cards/$card_id"
 }
 
-# Function to get the best card
-get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
+# Function to get the sorted list of cards
+get_sorted_cards() {
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
 }
 
 # Main script logic
@@ -81,31 +78,32 @@ main() {
         # Get the list of cards
         card_list=$(get_card_list)
         
-        # Get the best card
-        best_card=$(get_best_card "$card_list")
+        # Get the sorted list of cards
+        sorted_cards=$(get_sorted_cards "$card_list")
         
-        if [ -z "$best_card" ]; then
-            echo -e "${yellow}No suitable card found. Waiting for 60 seconds before trying again...${rest}"
+        if [ -z "$sorted_cards" ] || [ "$(echo "$sorted_cards" | jq length)" -eq 0 ]; then
+            echo -e "${yellow}No suitable cards found. Waiting for 60 seconds before trying again...${rest}"
             sleep 60
             continue
         fi
 
-        card_id=$(echo "$best_card" | jq -r '.id')
-        ratio=$(echo "$best_card" | jq -r '.ratio')
-
-        echo -e "${purple}============================${rest}"
-        echo -e "${green}Best card to select:${yellow} $card_id${rest}"
-        echo -e "${blue}Profit/Cost Ratio: ${cyan}$ratio${rest}"
-        echo ""
-
-        echo -e "${green}Attempting to select card '${yellow}$card_id${green}'...${rest}"
-        selection_result=$(select_card "$card_id")
-
-        if echo "$selection_result" | jq -e '.id' > /dev/null; then
-            echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
-        else
-            echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
-        fi
+        # Iterate through sorted cards
+        echo "$sorted_cards" | jq -c '.[]' | while read -r card; do
+            card_id=$(echo "$card" | jq -r '.id')
+            ratio=$(echo "$card" | jq -r '.ratio')
+            echo -e "${purple}============================${rest}"
+            echo -e "${green}Attempting to select card:${yellow} $card_id${rest}"
+            echo -e "${blue}Profit/Cost Ratio: ${cyan}$ratio${rest}"
+            echo ""
+            selection_result=$(select_card "$card_id")
+            if echo "$selection_result" | jq -e '.id' > /dev/null; then
+                echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
+                break
+            else
+                echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
+                echo -e "${yellow}Moving to the next card...${rest}"
+            fi
+        done
 
         echo -e "${green}Waiting for 10 seconds before next selection...${rest}"
         sleep 10
