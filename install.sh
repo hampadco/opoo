@@ -70,7 +70,7 @@ select_card() {
 
 # Function to get the best card
 get_best_card() {
-    echo "$1" | jq -r '.results[] | select(.status == "STARTED" and .requirement.level <= 1 and .requirement.cards == []) | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
+    echo "$1" | jq -r '.results[] | select(.status == "STARTED" and .requirement.cards == []) | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)[0]'
 }
 
 # Main script logic
