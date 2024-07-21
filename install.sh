@@ -72,8 +72,8 @@ get_sorted_cards() {
     echo "$1" | jq -r '.results[] | select(.status == "STARTED") | .id as $id | .effect_function.params | {id: $id, ratio: (.dst_amount / .coin_amount)}' | jq -s 'sort_by(-.ratio)'
 }
 
-# Array to store failed card IDs
-failed_cards=()
+# Declare an associative array to store failed card IDs
+declare -A failed_cards
 
 # Main script logic
 main() {
@@ -90,13 +90,15 @@ main() {
             continue
         fi
 
+        # Flag to check if a card was successfully selected
+        card_selected=false
+
         # Iterate through sorted cards
         echo "$sorted_cards" | jq -c '.[]' | while read -r card; do
             card_id=$(echo "$card" | jq -r '.id')
             
             # Check if the card is in the failed_cards array
-            if [[ " ${failed_cards[@]} " =~ " ${card_id} " ]]; then
-                echo -e "${yellow}Skipping previously failed card: ${card_id}${rest}"
+            if [[ ${failed_cards[$card_id]} ]]; then
                 continue
             fi
             
@@ -108,16 +110,22 @@ main() {
             selection_result=$(select_card "$card_id")
             if echo "$selection_result" | jq -e '.id' > /dev/null; then
                 echo -e "${green}Card ${yellow}'$card_id'${green} selected successfully.${rest}"
-                break 2  # Break out of both the while loop and the outer while loop
+                card_selected=true
+                break
             else
                 echo -e "${red}Failed to select card ${yellow}'$card_id'${red}. Error: ${cyan}$(echo "$selection_result" | jq -r '.detail')${rest}"
                 echo -e "${yellow}Adding card to failed list and moving to the next card...${rest}"
-                failed_cards+=("$card_id")
+                failed_cards[$card_id]=1
             fi
         done
 
-        echo -e "${green}Waiting for 1 second before next selection...${rest}"
-        sleep 1
+        if $card_selected; then
+            echo -e "${green}Waiting for 1 second before next selection...${rest}"
+            sleep 1
+        else
+            echo -e "${yellow}No cards could be selected. Waiting for 1 second before trying again...${rest}"
+            sleep 1
+        fi
     done
 }
 
